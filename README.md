@@ -36,13 +36,13 @@ sys.path.append('/content/ECE539-Project')
 This project requires the **COCO 2017 train and val sets** for keypoint annotations.
 
 ```bash
-%mkdir -p /content/CS566_Project/data/coco/annotations
-%mkdir -p /content/CS566_Project/data/coco/images/val2017
+%mkdir -p /content/ECE539-Project/data/coco/annotations
+%mkdir -p /content/ECE539-Project/data/coco/images/val2017
 
-%cd /content/CS566_Project/data/coco/annotations
+%cd /content/ECE539-Project/data/coco/annotations
 !wget http://images.cocodataset.org/annotations/annotations_trainval2017.zip
 
-%cd /content/CS566_Project/data/coco/images
+%cd /content/ECE539-Project/data/coco/images
 !wget http://images.cocodataset.org/zips/train2017.zip
 !wget http://images.cocodataset.org/zips/val2017.zip
 
@@ -53,7 +53,7 @@ This project requires the **COCO 2017 train and val sets** for keypoint annotati
 %cd annotations/
 !unzip annotations_trainval2017.zip
 
-%cd /content/CS566_Project/
+%cd /content/ECE539-Project/
 ```
 
 ---
