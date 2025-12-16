@@ -23,10 +23,10 @@ Install PyTorch (CUDA 12.1), COCO API, and other required libraries.
 Clone the project and add it to the Python path so Colab can import project modules.
 
 ```bash
-!git clone https://github.com/daeyeon-kim-99/CS566_Project.git
+!git clone https://github.com/niko314/ECE539-Project.git
 
 import sys, torch, torch.backends.cudnn as cudnn
-sys.path.append('/content/CS566_Project')
+sys.path.append('/content/ECE539-project')
 ```
 
 ---
