@@ -1,8 +1,3 @@
-"""
-This script generates a filtered COCO dataset that contains only images
-where all six lower-body keypoints are fully labeled.
-"""
-
 import json
 from pathlib import Path
 
@@ -14,19 +9,17 @@ with open(src_json, "r") as f:
     anno = json.load(f)
 
 images = anno["images"]
-anns    = anno["annotations"]
-cats    = anno["categories"]
+anns = anno["annotations"]
+cats = anno["categories"]
 
 # Lower-body joint indices
 LOWER_IDXS = [11, 12, 13, 14, 15, 16]
 
-"""
-Check if all lower-body joints are labeled.
-We focus on squat, which is a static movement, so using samples where
-all six lower-body joints is more suitable for our model.
-"""
-def lower_body_fully_labeled(keypoints):
 
+def lower_body_fully_labeled(keypoints):
+    """
+    Check if all lower-body joints are labeled.
+    """
     for j in LOWER_IDXS:
         # visibility value for joint j
         v = keypoints[3*j + 2]
@@ -38,8 +31,6 @@ def lower_body_fully_labeled(keypoints):
 selected_anns = []
 selected_img_ids = set()
 
-
-# filter in the annotations using lower_body_fully_labeled
 for a in anns:
     kpts = a.get("keypoints", [])
     # skip if no keypoints or invalid length
@@ -64,5 +55,3 @@ subset_anno = {
 
 with open(out_json, "w") as f:
     json.dump(subset_anno, f)
-
-print("Saved subset JSON to:", out_json)

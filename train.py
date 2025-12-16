@@ -1,4 +1,5 @@
-import os, random
+import os
+import random
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,13 +14,20 @@ from torch.utils.data import Dataset, DataLoader
 from pycocotools.coco import COCO
 
 SEED = 42
-random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
-DATA_ROOT = 'data/coco'
-TRAIN_ANN = 'data/coco_lower_full/person_keypoints_train2017_lower_full.json'
-VAL_ANN   = f'{DATA_ROOT}/annotations/annotations/person_keypoints_val2017.json'
-TRAIN_IMG_DIR = f'{DATA_ROOT}/images/train2017'
-VAL_IMG_DIR   = f'{DATA_ROOT}/images/val2017'
+# For mini dataset(20K), you should change path
+# TRAIN_ANN to 'data/coco_mini/person_keypoints_train2017_20k.json'
+
+# For lower full visible dataset(60K), you should change path
+# TRAIN_ANN to 'data/coco_lower_full/person_keypoints_train2017_lower_full.json'
+
+TRAIN_ANN = 'data/coco/annotations/annotations/person_keypoints_train2017.json'
+VAL_ANN   = 'data/coco/annotations/annotations/person_keypoints_val2017.json'
+TRAIN_IMG_DIR = 'data/coco/images/train2017'
+VAL_IMG_DIR = 'data/coco/images/val2017'
 
 # input height, width
 IN_H, IN_W = 256, 192
@@ -37,12 +45,12 @@ NUM_JOINTS = 6
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 BATCH_SIZE = 16
-EPOCHS = 30
+EPOCHS = 10
 
 LR = 0.001
 WD = 0.0001
 
-BBOX_SCALE = 1.0 
+BBOX_SCALE = 1.0
 
 # checkpoint path
 RUN_TAG = f"e{EPOCHS}"
@@ -77,7 +85,6 @@ def generate_target_heatmaps(joints, joints_vis, num_joints=NUM_JOINTS,
         y0 = int(center_y - kernel_radius)
         x1 = int(center_x + kernel_radius + 1)
         y1 = int(center_y + kernel_radius + 1)
-
 
         # upper left
         ul = [x0, y0]
@@ -121,6 +128,7 @@ def generate_target_heatmaps(joints, joints_vis, num_joints=NUM_JOINTS,
         )
     return target, target_weight
 
+
 # Make the bbox match the input aspect ratio to avoid shape distortion.
 def match_bbox(bbox, img_size, ratio=RATIO, scale=BBOX_SCALE):
 
@@ -149,7 +157,6 @@ def match_bbox(bbox, img_size, ratio=RATIO, scale=BBOX_SCALE):
     x0 = cx - w / 2.0
     y0 = cy - h / 2.0
 
-    
     W_img, H_img = img_size
     x0 = max(0.0, x0)
     y0 = max(0.0, y0)
@@ -203,6 +210,7 @@ def crop_and_resize(src_img, bbox, input_size=(IN_W, IN_H)):
     # Return the resized image and a tuple
     return resized, (crop_x0, crop_y0, scale_x, scale_y)
 
+
 def transform_keypoints_to_input(keypoints_xy, crop_to_input):
     # keypoints_xy: original image of x,y
     # crop_to_input: return value from crop_and_resize
@@ -219,8 +227,8 @@ def transform_keypoints_to_input(keypoints_xy, crop_to_input):
 
 
 """
-Our COCO lower-body dataset class is adapted from Microsoft’s SimpleBaseline 
-implementation. We follow their top-down COCO pipeline, but modify it for 
+Our COCO lower-body dataset class is adapted from Microsoft’s SimpleBaseline
+implementation. We follow their top-down COCO pipeline, but modify it for
 six lower-body joints and a simplified crop-and-resize step.
 """
 class COCOKeypointsLowerGTBbox(Dataset):
@@ -322,6 +330,7 @@ class COCOKeypointsLowerGTBbox(Dataset):
         }
         return sample
 
+
 # Heatmap decoder
 def decode_heatmaps(hm, beta=100.0, stride=4.0):
     B, J, H, W = hm.shape
@@ -336,19 +345,22 @@ def decode_heatmaps(hm, beta=100.0, stride=4.0):
     ys_grid = ys.unsqueeze(1).repeat(1, W)          # (H,W)
     grid = torch.stack([xs_grid, ys_grid], dim=-1).view(-1, 2)  # (H*W,2)
 
-    exp_xy = torch.matmul(prob, grid)               # (B,J,2)
-    xs_in = exp_xy[..., 0] * stride                 # (B,J)
-    ys_in = exp_xy[..., 1] * stride                 # (B,J)
+    exp_xy = torch.matmul(prob, grid)
+    xs_in = exp_xy[..., 0] * stride
+    ys_in = exp_xy[..., 1] * stride
 
-    conf = prob.max(dim=-1).values                  # (B,J)
+    conf = prob.max(dim=-1).values
     return xs_in, ys_in, conf
 
 
 # Make model and loss
 from lib.models.pose_resnet18 import PoseResNet18
+from lib.models.pose_resnet18_fpn import PoseResNet18FPN
+from lib.models.pose_lower_cnn import LowerBodyPoseNet
 
 def build_model():
     return PoseResNet18(num_joints=NUM_JOINTS)
+
 
 """
 The JointsMSELoss adapted from Microsoft’s SimpleBaseline implementation.
@@ -369,7 +381,7 @@ class JointsMSELoss(nn.Module):
             tw = target_weight
             for j in range(J):
                 loss += self.criterion(output[:, j, :] * tw[:, j, :],
-                                  target[:, j, :] * tw[:, j, :])
+                                       target[:, j, :] * tw[:, j, :])
             return loss / J
         else:
             return self.criterion(output, target)
@@ -386,9 +398,9 @@ def pck_accuracy(pred_x, pred_y, gt_kpts_in, vis, thr):
     joints = min(pred_joints, gt_joints)
     pred_x = pred_x[:, :joints]
     pred_y = pred_y[:, :joints]
-    gt_x   = gt_kpts_in[:, :joints, 0]
-    gt_y   = gt_kpts_in[:, :joints, 1]
-    vis_j  = vis[:, :joints]
+    gt_x = gt_kpts_in[:, :joints, 0]
+    gt_y = gt_kpts_in[:, :joints, 1]
+    vis_j = vis[:, :joints]
 
     # use joint only visible and inside of image
     valid = (
@@ -415,6 +427,7 @@ def pck_accuracy(pred_x, pred_y, gt_kpts_in, vis, thr):
 
     pck = float(ok.sum().item() / num_valid)
     return pck
+
 
 def train(model, loader, criterion, optimizer):
     model.train()
@@ -449,12 +462,13 @@ def train(model, loader, criterion, optimizer):
         total_loss += loss.item()
         total_pck005 += pck_005
         total_pck01 += pck_01
-        n_batches  += 1
+        n_batches += 1
 
     avg_loss = total_loss / n_batches
     avg_pck005 = total_pck005 / n_batches
     avg_pck01 = total_pck01 / n_batches
     return avg_loss, avg_pck005, avg_pck01
+
 
 @torch.no_grad()
 def eval(model, loader, criterion):
@@ -481,19 +495,23 @@ def eval(model, loader, criterion):
         total_loss += loss.item()
         total_pck005 += pck_005
         total_pck01 += pck_01
-        n_batches  += 1
+        n_batches += 1
 
     avg_loss = total_loss / n_batches
     avg_pck005 = total_pck005 / n_batches
     avg_pck01 = total_pck01 / n_batches
     return avg_loss, avg_pck005, avg_pck01
 
+
 # to make graph of training history
 history = {
     'epoch': [],
-    'train_loss': [], 'val_loss': [],
-    'train_pck005': [], 'val_pck005': [],
-    'train_pck01': [],  'val_pck01': [],
+    'train_loss': [],
+    'val_loss': [],
+    'train_pck005': [],
+    'val_pck005': [],
+    'train_pck01': [],
+    'val_pck01': [],
 }
 
 
@@ -501,24 +519,33 @@ def main():
 
     # Build COCO lower-body datasets for train and validation
     train_set = COCOKeypointsLowerGTBbox(
-        TRAIN_IMG_DIR, TRAIN_ANN,
+        TRAIN_IMG_DIR,
+        TRAIN_ANN,
         is_train=True,
         augment=True
     )
-    val_set   = COCOKeypointsLowerGTBbox(
-        VAL_IMG_DIR,   VAL_ANN,
+    val_set = COCOKeypointsLowerGTBbox(
+        VAL_IMG_DIR,
+        VAL_ANN,
         is_train=False,
         augment=False
     )
-    
+
     # Wrap datasets with DataLoader
     train_loader = DataLoader(
-        train_set, batch_size=BATCH_SIZE, shuffle=True,
-        num_workers=0, pin_memory=False, drop_last=True
+        train_set,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=False,
+        drop_last=True
     )
-    val_loader   = DataLoader(
-        val_set, batch_size=BATCH_SIZE, shuffle=False,
-        num_workers=0, pin_memory=False
+    val_loader = DataLoader(
+        val_set,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False
     )
 
     # Build pose model and move it to 'cuda'
@@ -529,7 +556,7 @@ def main():
     best_pck005 = 0.0
 
     # Training loop over epochs
-    for epoch in range(1, EPOCHS+1):
+    for epoch in range(1, EPOCHS + 1):
         print(f'\n[Epoch {epoch}/{EPOCHS}]')
         tr_loss, tr_pck005, tr_pck01 = train(model, train_loader, criterion, optimizer)
         vl_loss, vl_pck005, vl_pck01 = eval(model, val_loader, criterion)
@@ -562,22 +589,32 @@ def main():
         if vl_pck005 > best_pck005:
             best_pck005 = vl_pck005
             torch.save(ckpt, OUT_DIR / f'best_{RUN_TAG}.pth')
-            print(f'best updated')
+            print('best updated')
 
     plt.figure()
     plt.plot(history['epoch'], history['train_loss'], label='train loss')
-    plt.plot(history['epoch'], history['val_loss'],   label='val loss')
-    plt.xlabel('epoch'); plt.ylabel('loss'); plt.title(f'Loss curve ({RUN_TAG})'); plt.legend()
+    plt.plot(history['epoch'], history['val_loss'], label='val loss')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.title(f'Loss curve ({RUN_TAG})')
+    plt.legend()
     plt.tight_layout()
+    loss_fig_path = OUT_DIR / f'loss_curve_{RUN_TAG}.png'
+    plt.savefig(loss_fig_path)
     plt.show()
 
     plt.figure()
     plt.plot(history['epoch'], history['train_pck005'], label='train pck@0.05')
-    plt.plot(history['epoch'], history['val_pck005'],   label='val pck@0.05')
-    plt.plot(history['epoch'], history['train_pck01'],  label='train pck@0.10')
-    plt.plot(history['epoch'], history['val_pck01'],    label='val pck@0.10')
-    plt.xlabel('epoch'); plt.ylabel('PCK'); plt.title(f'PCK curves ({RUN_TAG})'); plt.legend()
+    plt.plot(history['epoch'], history['val_pck005'], label='val pck@0.05')
+    plt.plot(history['epoch'], history['train_pck01'], label='train pck@0.10')
+    plt.plot(history['epoch'], history['val_pck01'], label='val pck@0.10')
+    plt.xlabel('epoch')
+    plt.ylabel('PCK')
+    plt.title(f'PCK curves ({RUN_TAG})')
+    plt.legend()
     plt.tight_layout()
+    pck_fig_path = OUT_DIR / f'pck_curve_{RUN_TAG}.png'
+    plt.savefig(pck_fig_path)
     plt.show()
 
 if __name__ == '__main__':
