@@ -26,7 +26,7 @@ Clone the project and add it to the Python path so Colab can import project modu
 !git clone https://github.com/niko314/ECE539-Project.git
 
 import sys, torch, torch.backends.cudnn as cudnn
-sys.path.append('/content/ECE539-project')
+sys.path.append('/content/ECE539-Project')
 ```
 
 ---
